@@ -1,9 +1,12 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 void takeInput(std::string& input) {
-    std::cout << "cpp-shell> ";
+    std::filesystem::path current_dir = std::filesystem::current_path();
+
+    std::cout << current_dir.string() << "> ";
     std::getline(std::cin, input);
 }
 
@@ -33,6 +36,29 @@ void echo(const std::vector<std::string>& input) {
     std::cout << std::endl;
 }
 
+void changeDirectory(const std::vector<std::string>& input) {
+    // expected - cd c:/users/aarit.. valid and there are no spaces.
+    if (input.size() == 1) {
+        std::cout << "Please provide path" << std::endl;
+        return;
+    }
+    if (input[1] == ".") return;
+    if (input[1] == "..") {
+        std::filesystem::path currentPath = std::filesystem::current_path();
+        std::filesystem::current_path(currentPath.parent_path());
+        return;
+    }
+
+    std::filesystem::path new_path = input[1];
+    std::filesystem::path combined_path = std::filesystem::current_path() / new_path;
+    if (!std::filesystem::is_directory(combined_path)) {
+        std::cout << "This directory does not exist. Please provide a valid directory." << std::endl;
+        return;
+    }
+
+    std::filesystem::current_path(combined_path);
+}
+
 void output(const std::string& input) {
     if (input == "exit") return;
     if (input.empty()) return;
@@ -43,6 +69,12 @@ void output(const std::string& input) {
         echo(split_input);
         return;
     }
+
+    if (split_input[0] == "cd") {
+        changeDirectory(split_input);
+        return;
+    }
+
     std::cout << "You entered: " << input << std::endl;
 }
 
