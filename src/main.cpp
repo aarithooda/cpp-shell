@@ -3,8 +3,10 @@
 #include <vector>
 #include <filesystem>
 
+namespace fs = std::filesystem;
+
 void takeInput(std::string& input) {
-    std::filesystem::path current_dir = std::filesystem::current_path();
+    fs::path current_dir = fs::current_path();
 
     std::cout << current_dir.string() << "> ";
     std::getline(std::cin, input);
@@ -44,19 +46,29 @@ void changeDirectory(const std::vector<std::string>& input) {
     }
     if (input[1] == ".") return;
     if (input[1] == "..") {
-        std::filesystem::path currentPath = std::filesystem::current_path();
-        std::filesystem::current_path(currentPath.parent_path());
+        fs::path currentPath = fs::current_path();
+        fs::current_path(currentPath.parent_path());
         return;
     }
 
-    std::filesystem::path new_path = input[1];
-    std::filesystem::path combined_path = std::filesystem::current_path() / new_path;
-    if (!std::filesystem::is_directory(combined_path)) {
+    fs::path new_path = input[1];
+    fs::path combined_path = fs::current_path() / new_path;
+    if (!fs::is_directory(combined_path)) {
         std::cout << "This directory does not exist. Please provide a valid directory." << std::endl;
         return;
     }
 
-    std::filesystem::current_path(combined_path);
+    fs::current_path(combined_path);
+}
+
+void printWorkingDirectory(const std::vector<std::string>& input) {
+    if (input.size() != 1) {
+        std::cout << "pwd does not accept arguments" << std::endl;
+        return;
+    }
+
+    std::cout << fs::current_path().string() << std::endl;
+    return;
 }
 
 void output(const std::string& input) {
@@ -72,6 +84,11 @@ void output(const std::string& input) {
 
     if (split_input[0] == "cd") {
         changeDirectory(split_input);
+        return;
+    }
+
+    if (split_input[0] == "pwd") {
+        printWorkingDirectory(split_input);
         return;
     }
 
