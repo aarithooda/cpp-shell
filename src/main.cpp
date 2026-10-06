@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <filesystem>
+#include "process.h"
 
 namespace fs = std::filesystem;
 
@@ -82,17 +83,20 @@ void output(const std::string& input) {
         return;
     }
 
-    if (split_input[0] == "cd") {
+    else if (split_input[0] == "cd") {
         changeDirectory(split_input);
         return;
     }
 
-    if (split_input[0] == "pwd") {
+    else if (split_input[0] == "pwd") {
         printWorkingDirectory(split_input);
         return;
     }
 
-    std::cout << "You entered: " << input << std::endl;
+    else {
+        create_process(split_input[0]);
+        return;
+    }
 }
 
 int main() {
