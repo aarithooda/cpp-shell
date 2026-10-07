@@ -4,6 +4,7 @@
 #include "process.h"
 #include <filesystem>
 #include <vector>
+#include <sstream>
 
 namespace fs = std::filesystem;
 
@@ -61,77 +62,58 @@ std::wstring GetPath(const std::wstring& name) {
 
 void create_process(const std::string& name) {
     std::wstring wname(name.begin(), name.end());
-    wchar_t path[MAX_PATH];
+    std::wstring path = GetPath(wname);
 
-    DWORD result = SearchPathW(
+    if (path.empty()) {
+        std::cout << "We could not find this file." << std::endl;
+        return;
+    }
+
+    std::wstring cmdline = L"\"" + path + L"\"";
+    std::vector<wchar_t> cmdBuffer(cmdline.begin(), cmdline.end());
+    cmdBuffer.push_back(L'\0'); 
+
+    STARTUPINFOW si;
+    PROCESS_INFORMATION pi;
+
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    ZeroMemory(&pi, sizeof(pi));
+
+    BOOL bCreateProcess = CreateProcessW(
         NULL,
-        wname.c_str(),
-        L".exe",
-        MAX_PATH,
-        path,
-        NULL
+        cmdBuffer.data(),
+        NULL,
+        NULL,
+        FALSE,
+        0,
+        NULL,
+        NULL,
+        &si,
+        &pi
     );
 
-    // we have the path we can create the process
-    if (result > 0 && result <= MAX_PATH) {
-        STARTUPINFOW si;
-        PROCESS_INFORMATION pi;
-
-        ZeroMemory(&si, sizeof(si));
-        si.cb = sizeof(si);
-        ZeroMemory(&pi, sizeof(pi));
-
-        BOOL bCreateProcess = CreateProcessW(
-            path,
-            NULL,
-            NULL,
-            NULL,
-            FALSE,
-            0,
-            NULL,
-            NULL,
-            &si,
-            &pi
-        );
-
-        // the process could not run
-        if (!bCreateProcess) {
-            std::cout << "The process could not run. Error: " << GetLastError() << std::endl;
-            return;
-        }
-
-        // the process ran
-        else {
-            WaitForSingleObject(pi.hProcess, INFINITE);
-
-            DWORD exitcode = 0;
-
-            // the process exited with a certain exit code
-            if (GetExitCodeProcess(pi.hProcess, &exitcode)) {
-                std::cout << "process exited with code - " << exitcode << std::endl;
-            }
-            //there is some error
-            else {
-                std::cout << "failed to get exit code. error - " << GetLastError() << std::endl;
-            }
-
-            CloseHandle(pi.hProcess);
-            CloseHandle(pi.hThread);
-            return;
-        }
-    }
-
-    // the path is too long
-    else if (result > MAX_PATH) {
-        std::cout << "The path is too long. Buffer was too small." <<std::endl;
+    if (!bCreateProcess) {
+        std::cout << "The process could not run. Error: " << GetLastError() << std::endl;
         return;
     }
 
-    // we could not find the path
     else {
-        std::cout << "could not find this file." << std::endl;
-        return;
-    }
-    
+        WaitForSingleObject(pi.hProcess, INFINITE);
 
+        DWORD exitcode = 0;
+
+        // the process exited with a certain exit code
+        if (GetExitCodeProcess(pi.hProcess, &exitcode)) {
+            std::cout << "process exited with code - " << exitcode << std::endl;
+        }
+        //there is some error
+        else {
+            std::cout << "failed to get exit code. error - " << GetLastError() << std::endl;
+        }
+
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+        return;
+    }  
 }
