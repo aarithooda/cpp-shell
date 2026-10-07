@@ -2,6 +2,62 @@
 #include <windows.h>
 #include <string>
 #include "process.h"
+#include <filesystem>
+#include <vector>
+
+namespace fs = std::filesystem;
+
+std::vector<std::wstring> GetPathExtension() {
+    std::vector<std::wstring> extensions;
+    wchar_t buffer[1024];
+
+    DWORD len = GetEnvironmentVariableW(L"PATHEXT", buffer, 1024);
+    // return len how many it put there, or return 0 if found nothing
+    if (len > 0 && len < 1024) {
+        std::wstringstream ss(buffer);
+        std::wstring item;
+
+        while (std::getline(ss, item, L';')) {
+            if (!item.empty()) extensions.push_back(item);
+        }
+    }
+    else {
+        extensions = { L".COM", L".EXE", L".BAT", L".CMD" };
+    }
+
+    return extensions;    
+}
+
+std::wstring GetPath(const std::wstring& name) {
+    wchar_t path[MAX_PATH];
+    std::vector<std::wstring> extensions = GetPathExtension();
+
+    for (const std::wstring& ext : extensions) {
+        DWORD result = SearchPathW(
+            NULL,
+            name.c_str(),
+            ext.c_str(),
+            MAX_PATH,
+            path,
+            NULL
+        );
+
+        if (result > 0 && result <= MAX_PATH) return std::wstring(path);
+    }
+
+    WORD result = SearchPathW(
+        NULL,
+        name.c_str(),
+        NULL,
+        MAX_PATH,
+        path,
+        NULL
+    );
+
+    if (result > 0 && result <= MAX_PATH) return std::wstring(path);
+
+    return L"";
+}
 
 void create_process(const std::string& name) {
     std::wstring wname(name.begin(), name.end());
