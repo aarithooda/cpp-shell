@@ -7,13 +7,13 @@ std::vector<Token> tokenize(const std::string& input) {
     std::string temp;
 
     for (char c : input) {
-        if (c == ' ' && !temp.empty()) {
+        if ((c == ' ' || c == '\t') && !temp.empty()) {
             tokenisedInput.push_back({TokenKind::word, temp});
             temp.clear();
             continue;
         }
 
-        if (c != ' ') temp.push_back(c);
+        if (c != ' ' && c != '\t') temp.push_back(c);
     }
 
     if (!temp.empty()) tokenisedInput.push_back({TokenKind::word, temp});
