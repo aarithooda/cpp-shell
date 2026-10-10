@@ -8,4 +8,6 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 add_executable(shell
     src/main.cpp
     src/process.cpp
+    src/tokenizer.cpp
+    src/parser.cpp
 )
