@@ -70,6 +70,11 @@ void create_process(const std::string& program, const std::vector<std::string>& 
     }
 
     std::wstring cmdline = L"\"" + path + L"\"";
+    for (const auto& argument : arguments) {
+        std::wstring warg(argument.begin(), argument.end());
+        cmdline += L" " + warg;
+    }
+
     std::vector<wchar_t> cmdBuffer(cmdline.begin(), cmdline.end());
     cmdBuffer.push_back(L'\0'); 
 
@@ -103,12 +108,8 @@ void create_process(const std::string& program, const std::vector<std::string>& 
 
         DWORD exitcode = 0;
 
-        // the process exited with a certain exit code
-        if (GetExitCodeProcess(pi.hProcess, &exitcode)) {
-            std::cout << "process exited with code - " << exitcode << std::endl;
-        }
         //there is some error
-        else {
+        if (!GetExitCodeProcess(pi.hProcess, &exitcode)) {
             std::cout << "failed to get exit code. error - " << GetLastError() << std::endl;
         }
 
