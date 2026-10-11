@@ -75,7 +75,7 @@ void output(const std::string& input) {
     }
     else {
         // currently only name of program is useful
-        create_process(command.program);
+        create_process(command.program, command.arguments);
         return;
     }
 

@@ -60,8 +60,8 @@ std::wstring GetPath(const std::wstring& name) {
     return L"";
 }
 
-void create_process(const std::string& name) {
-    std::wstring wname(name.begin(), name.end());
+void create_process(const std::string& program, const std::vector<std::string>& arguments) {
+    std::wstring wname(program.begin(), program.end());
     std::wstring path = GetPath(wname);
 
     if (path.empty()) {
