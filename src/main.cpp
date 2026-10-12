@@ -5,6 +5,7 @@
 #include "process.h"
 #include "tokenizer.h"
 #include "parser.h"
+#include <system_error>
 
 namespace fs = std::filesystem;
 
@@ -27,28 +28,61 @@ void changeDirectory(const std::vector<std::string>& input, int& last_status) {
     // expected - cd c:/users/aarit.. valid and there are no spaces.
     if (input.empty()) {
         std::cout << "Please provide path" << std::endl;
+        last_status = 1;
         return;
     }
     if (input[0] == ".") {
         last_status = 0;
         return;
     }
+
+    std::error_code ec;
+
+
     if (input[0] == "..") {
-        fs::path currentPath = fs::current_path();
-        fs::current_path(currentPath.parent_path());
+        fs::path currentPath = fs::current_path(ec);
+
+        if (ec) {
+            std::cout << "Error getting the current path: " << ec.message() << std::endl;
+            last_status = 1;
+            return;
+        }
+
+        fs::current_path(currentPath.parent_path(), ec);
+
+        if (ec) {
+            std::cout << "cd: " << ec.message() << std::endl;
+            last_status = 1;
+            return;
+        }
+
         last_status = 0;
         return;
     }
 
     fs::path new_path = input[0];
-    fs::path combined_path = fs::current_path() / new_path;
-    if (!fs::is_directory(combined_path)) {
-        std::cout << "This directory does not exist. Please provide a valid directory." << std::endl;
-        last_status = 127;
+    fs::path combined_path = fs::current_path(ec) / new_path;
+
+    if (ec) {
+        std::cout << "cd: " << ec.message() << std::endl;
+        last_status = 1;
         return;
     }
 
-    fs::current_path(combined_path);
+    if (!fs::is_directory(combined_path, ec) || ec) {
+        std::cout << "This directory does not exist. Please provide a valid directory." << std::endl;
+        last_status = 1;
+        return;
+    }
+
+    fs::current_path(combined_path, ec);
+
+    if (ec) {
+        std::cout << "cd: " << ec.message() << std::endl;
+        last_status = 1;
+        return;
+    }
+
     last_status = 0;
     return;
 }
