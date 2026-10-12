@@ -9,11 +9,13 @@
 
 namespace fs = std::filesystem;
 
-void takeInput(std::string& input) {
+bool takeInput(std::string& input) {
     fs::path current_dir = fs::current_path();
 
     std::cout << current_dir.string() << "> ";
-    std::getline(std::cin, input);
+    
+    if (std::getline(std::cin, input)) return true;
+    return false;
 }
 
 void echo(const std::vector<std::string>& input, int& last_status) {
@@ -155,7 +157,10 @@ int main() {
     int last_status = 0;
 
     while (true) {
-        takeInput(input);
+        if (!takeInput(input)) {
+            std::cout << "\nExiting shell..." << std::endl;
+            break;
+        }
     
         if (input == "exit") {
             break;
