@@ -60,13 +60,15 @@ std::wstring GetPath(const std::wstring& name) {
     return L"";
 }
 
-void create_process(const std::string& program, const std::vector<std::string>& arguments) {
+ProcessResult create_process(const std::string& program, const std::vector<std::string>& arguments) {
     std::wstring wname(program.begin(), program.end());
     std::wstring path = GetPath(wname);
+    ProcessResult result;
 
+    // could not find the file
     if (path.empty()) {
-        std::cout << "We could not find this file." << std::endl;
-        return;
+        result.error = ProcessError::ExecutableNotFound;
+        return result;
     }
 
     std::wstring cmdline = L"\"" + path + L"\"";
@@ -98,23 +100,40 @@ void create_process(const std::string& program, const std::vector<std::string>& 
         &pi
     );
 
+    // the process could not run
     if (!bCreateProcess) {
-        std::cout << "The process could not run. Error: " << GetLastError() << std::endl;
-        return;
+        result.error = ProcessError::LaunchFailed;
+        return result;
     }
 
-    else {
-        WaitForSingleObject(pi.hProcess, INFINITE);
+    DWORD waitresult = WaitForSingleObject(pi.hProcess, INFINITE);
 
-        DWORD exitcode = 0;
-
-        //there is some error
-        if (!GetExitCodeProcess(pi.hProcess, &exitcode)) {
-            std::cout << "failed to get exit code. error - " << GetLastError() << std::endl;
-        }
+    if (waitresult != WAIT_OBJECT_0) {
+        result.error = ProcessError::WaitFailed;  
 
         CloseHandle(pi.hProcess);
         CloseHandle(pi.hThread);
-        return;
-    }  
+        return result;
+    }
+
+
+    DWORD exitcode = 0;
+
+    //the process ran but there is some error
+    if (!GetExitCodeProcess(pi.hProcess, &exitcode)) {
+        result.error = ProcessError::ExitCodeRetrievalFailed;
+
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+
+        return result;
+    }
+
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    result.success = true;
+    result.exitcode = exitcode;
+
+    return result;
 }
