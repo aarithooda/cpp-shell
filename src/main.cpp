@@ -102,7 +102,7 @@ void printWorkingDirectory(const std::vector<std::string>& input, int& last_stat
 }
 
 void output(const std::string& input, int& last_status) {
-    if (input.empty()) return;
+    if (input.empty() || input.find_first_not_of(" \t") == std::string::npos) return;
     std::vector<Token> tokenised_input = tokenize(input);
 
     Command command = parse(tokenised_input);
