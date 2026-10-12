@@ -120,8 +120,13 @@ int main() {
     std::string input;
     int last_status = 0;
 
-    while (input != "exit") {
+    while (true) {
         takeInput(input);
+    
+        if (input == "exit") {
+            break;
+        }
+    
         output(input, last_status);
     }
 
