@@ -60,6 +60,42 @@ std::wstring GetPath(const std::wstring& name) {
     return L"";
 }
 
+std::wstring escapeWindowsArgument(const std::string& argument) {
+    if (argument.empty()) return L"\"\"";
+
+    bool need_quoting = false;
+    for (char c : argument) {
+        if (c == ' ' || c == '\t' || c == '"') {
+            need_quoting = true;
+            break;
+        }
+    }
+
+    if (!need_quoting) return std::wstring(argument.begin(), argument.end());
+    
+    std::wstring escaped = L"\"";
+    int backlashes = 0;
+
+    for (char c : argument) {
+        if (c == '\\') backlashes++;
+        else if (c == '"') {
+            //escape all backlashes and put one in the end
+            escaped.append(backlashes*2 + 1, L'\\');
+            escaped.push_back(L'"');
+            backlashes = 0;
+        }
+        else {
+            backlashes = 0;
+            escaped.push_back(c);
+        }
+    }
+
+    if (backlashes > 0) escaped.append(backlashes*2, '\\');
+    
+    escaped.push_back(L'"');
+    return escaped;
+}
+
 ProcessResult create_process(const std::string& program, const std::vector<std::string>& arguments) {
     std::wstring wname(program.begin(), program.end());
     std::wstring path = GetPath(wname);
@@ -73,8 +109,7 @@ ProcessResult create_process(const std::string& program, const std::vector<std::
 
     std::wstring cmdline = L"\"" + path + L"\"";
     for (const auto& argument : arguments) {
-        std::wstring warg(argument.begin(), argument.end());
-        cmdline += L" " + warg;
+        cmdline += L" " + escapeWindowsArgument(argument);
     }
 
     std::vector<wchar_t> cmdBuffer(cmdline.begin(), cmdline.end());
