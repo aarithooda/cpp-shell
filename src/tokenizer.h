@@ -11,4 +11,4 @@ struct Token {
     std::string text;
 };
 
-std::vector<Token> tokenize(const std::string& input);
+std::vector<Token> tokenize(const std::string& input, int& last_status);
