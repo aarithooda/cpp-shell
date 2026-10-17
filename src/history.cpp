@@ -1,34 +1,48 @@
 #include "history.h"
 
-class History {
-private:
-    std::vector<std::string> history;
-    std::size_t current = 0;
-    std::string current_draft;
+History::History() {
+    index = 0;
+}
 
-public:
-    void add(const std::string& command) {
-        if (command.empty()) return;
-        history.push_back(command);
+void History::add(const std::string& command) {
+    if (command.empty()) return;
+    entries.push_back(command);
+    index = entries.size(); // Point past the end for the next new command
+}
+
+std::string History::previous(const std::string& current_input) {
+    if (entries.empty()) return current_input;
+
+    // If we are currently at the draft position, save the user's current typing
+    if (index == entries.size()) {
+        draft = current_input;
     }
 
-    std::string previous() {
-        if (current == 0) return current_draft;
-        current--;
-        return history[current];
+    // Move backward if possible
+    if (index > 0) {
+        index--;
     }
 
-    std::string next() {
-        if (current == history.size()) return current_draft;
-        if (current == history.size() - 1) {
-            current++;
-            return current_draft;
-        }
-        current++;
-        return history[current];
+    return entries[index];
+}
+
+std::string History::next() {
+    if (entries.empty()) return "";
+
+    // Move forward if possible
+    if (index < entries.size()) {
+        index++;
     }
 
-    void currentEntry(const std::string& input) {
-        current_draft = input;
+    // If we've navigated past the end of history, return the saved draft
+    if (index == entries.size()) {
+        return draft;
     }
-};
+
+    return entries[index];
+}
+
+void History::reset(const std::string& current_input) {
+    index = entries.size();
+    draft = current_input;
+}
