@@ -8,6 +8,7 @@
 #include <system_error>
 #include <conio.h>
 #include "history.h"
+#include <fstream>
 
 namespace fs = std::filesystem;
 
@@ -93,12 +94,30 @@ bool takeInput(std::string& input, History& history) {
     }
 }
 
-void echo(const std::vector<std::string>& input, int& last_status) {
-    for (int i = 0; i < input.size(); i++) {
-        std::cout << input[i] << " ";
+void echo(const Command& command, int& last_status) {
+    std::ostream* out = &std::cout;
+    std::ofstream file;
+
+    if (command.output_file.has_value()) {
+        auto mode = std::ios::out;
+        if (command.append_output) mode |= std::ios::app;
+        else mode |= std::ios::trunc;
+
+        file.open(command.output_file.value(), mode);
+        if (!file.is_open()) {
+            std::cerr << "echo: failed to open file for redirection: " << command.output_file.value() << std::endl;
+            last_status = 1;
+            return;
+        }
+        out = &file;
     }
-    std::cout << std::endl;
-    last_status = 0;    
+
+    for (size_t i = 0; i < command.arguments.size(); i++) {
+        *out << command.arguments[i];
+        if (i+1 < command.arguments.size()) *out << " ";
+    }
+    *out << std::endl;
+    last_status = 0;
 }
 
 void changeDirectory(const std::vector<std::string>& input, int& last_status) {
@@ -180,10 +199,10 @@ void output(const std::string& input, int& last_status) {
     if (input.empty() || input.find_first_not_of(" \t") == std::string::npos) return;
     std::vector<Token> tokenised_input = tokenize(input, last_status);
 
-    Command command = parse(tokenised_input);
+    Command command = parse(tokenised_input, last_status);
 
     if (command.program == "echo") {
-        echo(command.arguments, last_status);
+        echo(command, last_status);
         return;
     }
     else if (command.program == "cd") {
