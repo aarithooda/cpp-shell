@@ -1,9 +1,12 @@
-#pragma once // this tells the compiler only complie this one, does not matter how many time gets called
+#pragma once
 #include <string>
 #include <vector>
 
 enum class TokenKind {
-    word,
+    word, // ordinary text
+    redirect_in, // <
+    redirect_out, // >
+    redirect_append // >>
 };
 
 struct Token {
