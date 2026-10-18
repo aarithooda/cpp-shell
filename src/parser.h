@@ -12,4 +12,4 @@ struct Command {
     bool append_output = false;
 };
 
-Command parse(const std::vector<Token>& tokens);
+Command parse(const std::vector<Token>& tokens, int& last_status);

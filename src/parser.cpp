@@ -1,6 +1,7 @@
 #include "parser.h"
+#include <iostream>
 
-Command parse(const std::vector<Token>& tokens) {
+Command parse(const std::vector<Token>& tokens, int& last_status) {
     if (tokens.empty()) return {};
 
     Command command;
@@ -15,11 +16,21 @@ Command parse(const std::vector<Token>& tokens) {
                 command.append_output = (token.kind == TokenKind::redirect_append);
                 i++;
             }
+            else {
+                std::cout << "Syntax error: expected filename after redirection operator." << std::endl;
+                last_status = 1;
+                return {};
+            }
         }
         else if (token.kind == TokenKind::redirect_in) {
             if (i+1 < tokens.size() && tokens[i+1].kind == TokenKind::word) {
                 command.input_file = tokens[i+1].text;
                 i++;
+            }
+            else {
+                std::cout << "Syntax error: expected filename after input redirection operator." << std::endl;
+                last_status = 1;
+                return {};
             }
         }
         else if (token.kind == TokenKind::word) {
