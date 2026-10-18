@@ -6,16 +6,91 @@
 #include "tokenizer.h"
 #include "parser.h"
 #include <system_error>
+#include <conio.h>
+#include "history.h"
 
 namespace fs = std::filesystem;
 
-bool takeInput(std::string& input) {
+bool takeInput(std::string& input, History& history) {
     fs::path current_dir = fs::current_path();
 
-    std::cout << current_dir.string() << "> ";
+    std::cout << current_dir.string() << "> " << std::flush;
     
-    if (std::getline(std::cin, input)) return true;
-    return false;
+    input.clear();
+    history.reset(input);
+    bool in_history = false;
+    char ch;
+
+    // lambda helper to clear the input text from console
+    auto clear_current_line = [&input]() {
+        for (std::size_t i = 0; i < input.size(); i++) {
+            std::cout << "\b \b";
+        }
+    };
+
+    while (true) {
+        ch = _getch();
+        
+        // for enter key
+        if (ch == '\r' || ch == '\n') {
+            std::cout << std::endl;
+            if (!input.empty()) history.add(input);
+            history.reset(input);
+            return true;
+        }
+        // EOF, ctrl+z
+        else if (ch == 26) {
+            std::cout << std::endl;
+            return false;
+        }
+        // backspace
+        else if (ch == '\b' || ch == 127) {
+            if (!input.empty()) {
+                input.pop_back();
+                std::cout << "\b \b"; // moves back prints a space moves back again
+                
+                if (in_history) {
+                    history.reset(input);
+                    in_history = false;
+                }
+                else history.reset(input);
+            }
+        }
+        //arrow keys
+        else if (ch == 0 || static_cast<unsigned char>(ch) == 224) {
+            int scan_code = _getch();
+            
+            // up arrow
+            if (scan_code == 72) {
+                clear_current_line();
+                input = history.previous(input);
+                std::cout << input;
+                in_history = true;
+            }
+            //down arrow
+            else if (scan_code == 80) {
+                clear_current_line();
+                input = history.next();
+                std::cout << input;
+                in_history = false;
+            }
+            
+        }
+        else if (ch == 'H' || ch == 'P') {
+            std::cout << "\n[DEBUG] standalone character = " << static_cast<int>(ch) << '\n';
+        }
+        // normal character
+        else if (ch >= 32 && ch <= 126) {
+            if (in_history) {
+                history.reset(input);
+                in_history = false;
+            }
+
+            input.push_back(ch);
+            std::cout << ch;
+            history.reset(input);
+        }
+    }
 }
 
 void echo(const std::vector<std::string>& input, int& last_status) {
@@ -153,11 +228,12 @@ void output(const std::string& input, int& last_status) {
 }
 
 int main() {
+    History history;
     std::string input;
     int last_status = 0;
 
     while (true) {
-        if (!takeInput(input)) {
+        if (!takeInput(input, history)) {
             std::cout << "\nExiting shell..." << std::endl;
             break;
         }

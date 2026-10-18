@@ -10,4 +10,5 @@ add_executable(shell
     src/process.cpp
     src/tokenizer.cpp
     src/parser.cpp
+    src/history.cpp
 )
