@@ -124,6 +124,10 @@ ProcessResult create_process(const std::string& program,
 
     HANDLE hOutputFile = INVALID_HANDLE_VALUE;
 
+    si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
+    si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+
     if (output_file.has_value()) {
         std::wstring woutfile(output_file->begin(), output_file->end());
 
@@ -157,7 +161,6 @@ ProcessResult create_process(const std::string& program,
 
         si.dwFlags |= STARTF_USESTDHANDLES;
         si.hStdOutput = hOutputFile;
-        si.hStdError = hOutputFile;
     }
 
     BOOL bCreateProcess = CreateProcessW(
