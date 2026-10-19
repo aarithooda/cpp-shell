@@ -214,7 +214,7 @@ void output(const std::string& input, int& last_status) {
         return;
     }
     else {
-        ProcessResult result = create_process(command.program, command.arguments);
+        ProcessResult result = create_process(command.program, command.arguments, command.output_file, command.append_output);
 
         if (result.success) {
             last_status = result.exitcode;
@@ -236,6 +236,10 @@ void output(const std::string& input, int& last_status) {
                 break;
             case ProcessError::ExitCodeRetrievalFailed:
                 std::cout << "Failed to retrieve exit code for: " << command.program << std::endl;
+                last_status = 1;
+                break;
+            case ProcessError::FileOpenFailed:
+                std::cout << "Failed to open file for redirection." << std::endl;
                 last_status = 1;
                 break;
             case ProcessError::None:

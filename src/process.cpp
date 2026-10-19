@@ -1,9 +1,6 @@
 #include <iostream>
-#include <windows.h>
-#include <string>
 #include "process.h"
 #include <filesystem>
-#include <vector>
 #include <sstream>
 
 namespace fs = std::filesystem;
@@ -96,7 +93,10 @@ std::wstring escapeWindowsArgument(const std::string& argument) {
     return escaped;
 }
 
-ProcessResult create_process(const std::string& program, const std::vector<std::string>& arguments) {
+ProcessResult create_process(const std::string& program, 
+                            const std::vector<std::string>& arguments, 
+                            std::optional<std::string> output_file = std::nullopt, 
+                            bool append_output = false) {
     std::wstring wname(program.begin(), program.end());
     std::wstring path = GetPath(wname);
     ProcessResult result;
@@ -122,18 +122,58 @@ ProcessResult create_process(const std::string& program, const std::vector<std::
     si.cb = sizeof(si);
     ZeroMemory(&pi, sizeof(pi));
 
+    HANDLE hOutputFile = INVALID_HANDLE_VALUE;
+
+    if (output_file.has_value()) {
+        std::wstring woutfile(output_file->begin(), output_file->end());
+
+        SECURITY_ATTRIBUTES sa;
+        sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+        sa.lpSecurityDescriptor = NULL;
+        sa.bInheritHandle = TRUE;
+
+        DWORD creationDisposition = append_output ? OPEN_ALWAYS : CREATE_ALWAYS;
+        DWORD desiredAccess = FILE_WRITE_DATA;
+        if (append_output) {
+            desiredAccess |= FILE_APPEND_DATA;
+        }
+
+        hOutputFile = CreateFileW(
+            woutfile.c_str(),
+            desiredAccess,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            &sa,
+            creationDisposition,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL
+        );
+
+        if (hOutputFile == INVALID_HANDLE_VALUE) {
+            result.error = ProcessError::FileOpenFailed;
+            return result;
+        }
+
+        if (append_output) SetFilePointer(hOutputFile, 0, NULL, FILE_END);
+
+        si.dwFlags |= STARTF_USESTDHANDLES;
+        si.hStdOutput = hOutputFile;
+        si.hStdError = hOutputFile;
+    }
+
     BOOL bCreateProcess = CreateProcessW(
         NULL,
         cmdBuffer.data(),
         NULL,
         NULL,
-        FALSE,
+        output_file.has_value() ? TRUE : FALSE,
         0,
         NULL,
         NULL,
         &si,
         &pi
     );
+
+    if (hOutputFile != INVALID_HANDLE_VALUE) CloseHandle(hOutputFile);
 
     // the process could not run
     if (!bCreateProcess) {
