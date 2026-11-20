@@ -7,7 +7,10 @@ enum class TokenKind {
     redirect_in, // <
     redirect_out, // >
     redirect_append, // >>
-    command_separator // ;
+    command_separator, // ;
+    conditional_and, // &&
+    conditional_or, // ||
+    pipe // |
 };
 
 struct Token {

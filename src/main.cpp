@@ -10,24 +10,25 @@
 #include "history.h"
 #include <fstream>
 #include <cstdlib>
+#include <map>
 
 namespace fs = std::filesystem;
 
 bool takeInput(std::string& input, History& history) {
-    fs::path current_dir = fs::current_path();
-
-    std::cout << current_dir.string() << "> " << std::flush;
-    
+    std::string prompt = fs::current_path().string() + "> ";
+    std::cout << prompt << std::flush;
     input.clear();
     history.reset(input);
     bool in_history = false;
+    size_t cursor = 0;
+    size_t old_size = 0;
     char ch;
 
-    // lambda helper to clear the input text from console
-    auto clear_current_line = [&input]() {
-        for (std::size_t i = 0; i < input.size(); i++) {
-            std::cout << "\b \b";
-        }
+    auto redraw = [&]() {
+        std::cout << '\r' << prompt << input;
+        if (old_size > input.size()) std::cout << std::string(old_size-input.size(), ' ');
+        std::cout << '\r' << prompt << input.substr(0, cursor) << std::flush;
+        old_size = input.size();
     };
 
     while (true) {
@@ -36,7 +37,7 @@ bool takeInput(std::string& input, History& history) {
         // for enter key
         if (ch == '\r' || ch == '\n') {
             std::cout << std::endl;
-            if (!input.empty()) history.add(input);
+                if (!input.empty()) history.add(input);
             history.reset(input);
             return true;
         }
@@ -47,15 +48,12 @@ bool takeInput(std::string& input, History& history) {
         }
         // backspace
         else if (ch == '\b' || ch == 127) {
-            if (!input.empty()) {
-                input.pop_back();
-                std::cout << "\b \b"; // moves back prints a space moves back again
-                
-                if (in_history) {
-                    history.reset(input);
-                    in_history = false;
-                }
-                else history.reset(input);
+            if (cursor > 0) {
+                input.erase(cursor-1, 1);
+                cursor--;
+                history.reset(input);
+                in_history = false;
+                redraw();
             }
         }
         //arrow keys
@@ -64,22 +62,40 @@ bool takeInput(std::string& input, History& history) {
             
             // up arrow
             if (scan_code == 72) {
-                clear_current_line();
                 input = history.previous(input);
-                std::cout << input;
+                cursor = input.size();
                 in_history = true;
+                redraw();
             }
             //down arrow
             else if (scan_code == 80) {
-                clear_current_line();
                 input = history.next();
-                std::cout << input;
+                cursor = input.size();
                 in_history = false;
+                redraw();
             }
-            
-        }
-        else if (ch == 'H' || ch == 'P') {
-            std::cout << "\n[DEBUG] standalone character = " << static_cast<int>(ch) << '\n';
+            else if (scan_code == 75 && cursor > 0) {
+                cursor--;
+                redraw();
+            }
+            else if (scan_code == 77 && cursor < input.size()) {
+                cursor++;
+                redraw();
+            }
+            else if (scan_code == 71) {
+                cursor = 0;
+                redraw();
+            }
+            else if (scan_code == 79) {
+                cursor = input.size();
+                redraw();
+            }
+            else if (scan_code == 83 && cursor < input.size()) {
+                input.erase(cursor, 1);
+                history.reset(input);
+                in_history = false;
+                redraw();
+            }
         }
         // normal character
         else if (ch >= 32 && ch <= 126) {
@@ -88,9 +104,10 @@ bool takeInput(std::string& input, History& history) {
                 in_history = false;
             }
 
-            input.push_back(ch);
-            std::cout << ch;
+            input.insert(input.begin()+cursor, ch);
+            cursor++;
             history.reset(input);
+            redraw();
         }
     }
 }
@@ -170,14 +187,25 @@ void changeDirectory(const std::vector<std::string>& input, int& last_status) {
     return;
 }
 
-void printWorkingDirectory(const std::vector<std::string>& input, int& last_status) {
+void printWorkingDirectory(const std::vector<std::string>& input, const std::optional<std::string>& output_file, int& last_status) {
     if (!input.empty()) {
         std::cout << "pwd does not accept arguments" << std::endl;
         last_status = 1;
         return;
     }
 
-    std::cout << fs::current_path().string() << std::endl;
+    std::ostream* out = &std::cout;
+    std::ofstream file;
+    if (output_file.has_value()) {
+        file.open(output_file.value());
+        if (!file.is_open()) {
+            std::cerr << "pwd: failed to open file for redirection: " << output_file.value() << std::endl;
+            last_status = 1;
+            return;
+        }
+        out = &file;
+    }
+    *out << fs::current_path().string() << std::endl;
     last_status = 0;
     return;
 }
@@ -185,6 +213,31 @@ void printWorkingDirectory(const std::vector<std::string>& input, int& last_stat
 bool runCommand(const Command& command, int& last_status) {
     if (command.program.empty()) return true;
     if (command.program == "exit") return false;
+    if (command.program == "help") {
+        std::cout << "Commands: echo, cd, pwd, set, exit, help" << std::endl;
+        std::cout << "Operators: <, >, >>, |, ;, &&, ||" << std::endl;
+        std::cout << "Variables: %NAME% or $NAME" << std::endl;
+        std::cout << "Startup settings: %USERPROFILE%\\.cpp-shellrc" << std::endl;
+        last_status = 0;
+        return true;
+    }
+    if (command.program == "set") {
+        if (command.arguments.size() != 1) {
+            std::cout << "set: expected NAME=value" << std::endl;
+            last_status = 1;
+            return true;
+        }
+        size_t equals = command.arguments[0].find('=');
+        if (equals == std::string::npos || equals == 0) {
+            std::cout << "set: expected NAME=value" << std::endl;
+            last_status = 1;
+            return true;
+        }
+        std::string name = command.arguments[0].substr(0, equals);
+        std::string value = command.arguments[0].substr(equals+1);
+        last_status = _putenv_s(name.c_str(), value.c_str()) == 0 ? 0 : 1;
+        return true;
+    }
     if (command.program == "echo") {
         echo(command, last_status);
         return true;
@@ -194,7 +247,7 @@ bool runCommand(const Command& command, int& last_status) {
         return true;
     }
     else if (command.program == "pwd") {
-        printWorkingDirectory(command.arguments, last_status);
+        printWorkingDirectory(command.arguments, command.output_file, last_status);
         return true;
     }
     else {
@@ -235,34 +288,96 @@ bool runCommand(const Command& command, int& last_status) {
     return true;
 }
 
+bool runPipeline(const std::vector<Token>& tokens, int& last_status) {
+    std::vector<std::vector<Token>> command_tokens(1);
+    for (const auto& token : tokens) {
+        if (token.kind == TokenKind::pipe) command_tokens.emplace_back();
+        else command_tokens.back().push_back(token);
+    }
+
+    for (const auto& command : command_tokens) {
+        if (command.empty()) {
+            std::cout << "Syntax error: expected command after pipe." << std::endl;
+            last_status = 1;
+            return true;
+        }
+    }
+
+    std::vector<Command> commands;
+    for (const auto& command : command_tokens) {
+        Command parsed = parse(command, last_status);
+        if (parsed.program.empty()) return true;
+        commands.push_back(parsed);
+    }
+
+    static unsigned int pipe_number = 0;
+    std::vector<fs::path> temporary_files;
+    for (size_t i = 0; i < commands.size(); i++) {
+        if (i > 0 && !commands[i].input_file.has_value()) commands[i].input_file = temporary_files.back().string();
+        if (i+1 < commands.size()) {
+            fs::path temp_file = fs::temp_directory_path() / ("cpp-shell-pipe-" + std::to_string(GetCurrentProcessId()) + "-" + std::to_string(pipe_number++) + ".tmp");
+            temporary_files.push_back(temp_file);
+            std::ofstream create_file(temp_file, std::ios::trunc);
+            create_file.close();
+            if (!commands[i].output_file.has_value()) commands[i].output_file = temp_file.string();
+        }
+        if (!runCommand(commands[i], last_status)) {
+            for (const auto& file : temporary_files) fs::remove(file);
+            return false;
+        }
+    }
+
+    for (const auto& file : temporary_files) fs::remove(file);
+    return true;
+}
+
 bool output(const std::string& input, int& last_status) {
     if (input.empty() || input.find_first_not_of(" \t") == std::string::npos) return true;
     std::vector<Token> tokenised_input = tokenize(input, last_status);
     if (tokenised_input.empty()) return true;
 
     std::vector<Token> command_tokens;
+    enum class Condition { always, success, failure };
+    Condition condition = Condition::always;
     for (const auto& token : tokenised_input) {
-        if (token.kind == TokenKind::command_separator) {
+        if (token.kind == TokenKind::command_separator || token.kind == TokenKind::conditional_and || token.kind == TokenKind::conditional_or) {
             if (!command_tokens.empty()) {
-                Command command = parse(command_tokens, last_status);
-                if (!runCommand(command, last_status)) return false;
+                bool should_run = condition == Condition::always || (condition == Condition::success && last_status == 0) || (condition == Condition::failure && last_status != 0);
+                if (should_run && !runPipeline(command_tokens, last_status)) return false;
                 command_tokens.clear();
             }
+            else if (token.kind != TokenKind::command_separator) {
+                std::cout << "Syntax error: expected command." << std::endl;
+                last_status = 1;
+            }
+            condition = token.kind == TokenKind::conditional_and ? Condition::success : token.kind == TokenKind::conditional_or ? Condition::failure : Condition::always;
         }
         else command_tokens.push_back(token);
     }
 
     if (!command_tokens.empty()) {
-        Command command = parse(command_tokens, last_status);
-        if (!runCommand(command, last_status)) return false;
+        bool should_run = condition == Condition::always || (condition == Condition::success && last_status == 0) || (condition == Condition::failure && last_status != 0);
+        if (should_run && !runPipeline(command_tokens, last_status)) return false;
     }
     return true;
+}
+
+void loadConfiguration(int& last_status) {
+    const char* user_profile = std::getenv("USERPROFILE");
+    if (user_profile == nullptr) return;
+
+    std::ifstream config(fs::path(user_profile) / ".cpp-shellrc");
+    std::string line;
+    while (std::getline(config, line)) {
+        if (!line.empty()) output(line, last_status);
+    }
 }
 
 int main() {
     History history;
     std::string input;
     int last_status = 0;
+    loadConfiguration(last_status);
 
     while (true) {
         if (!takeInput(input, history)) {

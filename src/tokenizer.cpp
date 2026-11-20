@@ -1,5 +1,12 @@
 #include "tokenizer.h"
 #include <iostream>
+#include <cstdlib>
+#include <cctype>
+
+void addEnvironmentValue(std::string& temp, const std::string& name) {
+    const char* value = std::getenv(name.c_str());
+    if (value != nullptr) temp += value;
+}
 
 std::vector<Token> tokenize(const std::string& input, int& last_status) {
     if (input.empty()) return {};
@@ -30,6 +37,26 @@ std::vector<Token> tokenize(const std::string& input, int& last_status) {
             }
         }
 
+        if (quote != '\'') {
+            if (c == '%' && i+1 < input.size()) {
+                size_t end = input.find('%', i+1);
+                if (end != std::string::npos && end > i+1) {
+                    addEnvironmentValue(temp, input.substr(i+1, end-i-1));
+                    token_started = true;
+                    i = end;
+                    continue;
+                }
+            }
+            if (c == '$' && i+1 < input.size() && (std::isalpha(static_cast<unsigned char>(input[i+1])) || input[i+1] == '_')) {
+                size_t end = i+1;
+                while (end < input.size() && (std::isalnum(static_cast<unsigned char>(input[end])) || input[end] == '_')) end++;
+                addEnvironmentValue(temp, input.substr(i+1, end-i-1));
+                token_started = true;
+                i = end-1;
+                continue;
+            }
+        }
+
         if (quote == '\0') {
             if (c == ' ' || c == '\t') {
                 if (token_started) {
@@ -40,14 +67,37 @@ std::vector<Token> tokenize(const std::string& input, int& last_status) {
                 continue;
             }
 
-            if (c == '<' || c == '>') {
+            if (c == '&' && i+1 < input.size() && input[i+1] == '&') {
+                if (token_started) {
+                    tokenisedInput.push_back({TokenKind::word, temp});
+                    temp.clear();
+                    token_started = false;
+                }
+                tokenisedInput.push_back({TokenKind::conditional_and, "&&"});
+                i++;
+                continue;
+            }
+
+            if (c == '|' && i+1 < input.size() && input[i+1] == '|') {
+                if (token_started) {
+                    tokenisedInput.push_back({TokenKind::word, temp});
+                    temp.clear();
+                    token_started = false;
+                }
+                tokenisedInput.push_back({TokenKind::conditional_or, "||"});
+                i++;
+                continue;
+            }
+
+            if (c == '|' || c == '<' || c == '>') {
                 if (token_started) {
                     tokenisedInput.push_back({TokenKind::word, temp});
                     temp.clear();
                     token_started = false;
                 }
 
-                if (c == '>' && i+1 < input.size() && input[i+1] == '>') {
+                if (c == '|') tokenisedInput.push_back({TokenKind::pipe, "|"});
+                else if (c == '>' && i+1 < input.size() && input[i+1] == '>') {
                     tokenisedInput.push_back({TokenKind::redirect_append, ">>"});
                     i++;
                 }
