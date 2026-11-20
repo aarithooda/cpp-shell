@@ -19,3 +19,4 @@ struct Token {
 };
 
 std::vector<Token> tokenize(const std::string& input, int& last_status);
+void expand_variables(std::vector<Token>& tokens);
