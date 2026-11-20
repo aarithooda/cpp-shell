@@ -9,6 +9,7 @@
 #include <conio.h>
 #include "history.h"
 #include <fstream>
+#include <cstdlib>
 
 namespace fs = std::filesystem;
 
@@ -121,57 +122,43 @@ void echo(const Command& command, int& last_status) {
 }
 
 void changeDirectory(const std::vector<std::string>& input, int& last_status) {
-    // expected - cd c:/users/aarit.. valid and there are no spaces.
-    if (input.empty()) {
-        std::cout << "Please provide path" << std::endl;
+    if (input.size() > 1) {
+        std::cout << "cd: too many arguments" << std::endl;
         last_status = 1;
         return;
     }
-    if (input[0] == ".") {
-        last_status = 0;
-        return;
-    }
-
     std::error_code ec;
+    fs::path new_path;
 
-
-    if (input[0] == "..") {
-        fs::path currentPath = fs::current_path(ec);
-
-        if (ec) {
-            std::cout << "Error getting the current path: " << ec.message() << std::endl;
+    if (input.empty()) {
+        const char* user_profile = std::getenv("USERPROFILE");
+        if (user_profile == nullptr) {
+            std::cout << "cd: home directory is not set" << std::endl;
             last_status = 1;
             return;
         }
-
-        fs::current_path(currentPath.parent_path(), ec);
-
-        if (ec) {
-            std::cout << "cd: " << ec.message() << std::endl;
-            last_status = 1;
-            return;
+        new_path = user_profile;
+    }
+    else {
+        new_path = input[0];
+        if (new_path == "~") {
+            const char* user_profile = std::getenv("USERPROFILE");
+            if (user_profile == nullptr) {
+                std::cout << "cd: home directory is not set" << std::endl;
+                last_status = 1;
+                return;
+            }
+            new_path = user_profile;
         }
-
-        last_status = 0;
-        return;
     }
 
-    fs::path new_path = input[0];
-    fs::path combined_path = fs::current_path(ec) / new_path;
-
-    if (ec) {
-        std::cout << "cd: " << ec.message() << std::endl;
+    if (!fs::is_directory(new_path, ec) || ec) {
+        std::cout << "cd: directory does not exist: " << new_path.string() << std::endl;
         last_status = 1;
         return;
     }
 
-    if (!fs::is_directory(combined_path, ec) || ec) {
-        std::cout << "This directory does not exist. Please provide a valid directory." << std::endl;
-        last_status = 1;
-        return;
-    }
-
-    fs::current_path(combined_path, ec);
+    fs::current_path(new_path, ec);
 
     if (ec) {
         std::cout << "cd: " << ec.message() << std::endl;
@@ -195,30 +182,27 @@ void printWorkingDirectory(const std::vector<std::string>& input, int& last_stat
     return;
 }
 
-void output(const std::string& input, int& last_status) {
-    if (input.empty() || input.find_first_not_of(" \t") == std::string::npos) return;
-    std::vector<Token> tokenised_input = tokenize(input, last_status);
-
-    Command command = parse(tokenised_input, last_status);
-
+bool runCommand(const Command& command, int& last_status) {
+    if (command.program.empty()) return true;
+    if (command.program == "exit") return false;
     if (command.program == "echo") {
         echo(command, last_status);
-        return;
+        return true;
     }
     else if (command.program == "cd") {
         changeDirectory(command.arguments, last_status);
-        return;
+        return true;
     }
     else if (command.program == "pwd") {
         printWorkingDirectory(command.arguments, last_status);
-        return;
+        return true;
     }
     else {
-        ProcessResult result = create_process(command.program, command.arguments, command.output_file, command.append_output);
+        ProcessResult result = create_process(command.program, command.arguments, command.input_file, command.output_file, command.append_output);
 
         if (result.success) {
             last_status = result.exitcode;
-            return;
+            return true;
         }
 
         switch (result.error) {
@@ -248,6 +232,31 @@ void output(const std::string& input, int& last_status) {
         }
     }
 
+    return true;
+}
+
+bool output(const std::string& input, int& last_status) {
+    if (input.empty() || input.find_first_not_of(" \t") == std::string::npos) return true;
+    std::vector<Token> tokenised_input = tokenize(input, last_status);
+    if (tokenised_input.empty()) return true;
+
+    std::vector<Token> command_tokens;
+    for (const auto& token : tokenised_input) {
+        if (token.kind == TokenKind::command_separator) {
+            if (!command_tokens.empty()) {
+                Command command = parse(command_tokens, last_status);
+                if (!runCommand(command, last_status)) return false;
+                command_tokens.clear();
+            }
+        }
+        else command_tokens.push_back(token);
+    }
+
+    if (!command_tokens.empty()) {
+        Command command = parse(command_tokens, last_status);
+        if (!runCommand(command, last_status)) return false;
+    }
+    return true;
 }
 
 int main() {
@@ -261,11 +270,7 @@ int main() {
             break;
         }
     
-        if (input == "exit") {
-            break;
-        }
-    
-        output(input, last_status);
+        if (!output(input, last_status)) break;
     }
 
     return 0;

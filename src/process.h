@@ -21,5 +21,6 @@ struct ProcessResult {
 
 ProcessResult create_process(const std::string& program, 
                             const std::vector<std::string>& arguments, 
+                            std::optional<std::string> input_file = std::nullopt,
                             std::optional<std::string> output_file = std::nullopt, 
                             bool append_output = false);

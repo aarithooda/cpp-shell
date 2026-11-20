@@ -95,8 +95,9 @@ std::wstring escapeWindowsArgument(const std::string& argument) {
 
 ProcessResult create_process(const std::string& program, 
                             const std::vector<std::string>& arguments, 
-                            std::optional<std::string> output_file = std::nullopt, 
-                            bool append_output = false) {
+                            std::optional<std::string> input_file,
+                            std::optional<std::string> output_file,
+                            bool append_output) {
     std::wstring wname(program.begin(), program.end());
     std::wstring path = GetPath(wname);
     ProcessResult result;
@@ -123,10 +124,38 @@ ProcessResult create_process(const std::string& program,
     ZeroMemory(&pi, sizeof(pi));
 
     HANDLE hOutputFile = INVALID_HANDLE_VALUE;
+    HANDLE hInputFile = INVALID_HANDLE_VALUE;
 
     si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
     si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
     si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+
+    if (input_file.has_value()) {
+        std::wstring winfile(input_file->begin(), input_file->end());
+
+        SECURITY_ATTRIBUTES sa;
+        sa.nLength = sizeof(SECURITY_ATTRIBUTES);
+        sa.lpSecurityDescriptor = NULL;
+        sa.bInheritHandle = TRUE;
+
+        hInputFile = CreateFileW(
+            winfile.c_str(),
+            GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            &sa,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            NULL
+        );
+
+        if (hInputFile == INVALID_HANDLE_VALUE) {
+            result.error = ProcessError::FileOpenFailed;
+            return result;
+        }
+
+        si.hStdInput = hInputFile;
+        si.dwFlags |= STARTF_USESTDHANDLES;
+    }
 
     if (output_file.has_value()) {
         std::wstring woutfile(output_file->begin(), output_file->end());
@@ -153,6 +182,7 @@ ProcessResult create_process(const std::string& program,
         );
 
         if (hOutputFile == INVALID_HANDLE_VALUE) {
+            if (hInputFile != INVALID_HANDLE_VALUE) CloseHandle(hInputFile);
             result.error = ProcessError::FileOpenFailed;
             return result;
         }
@@ -168,7 +198,7 @@ ProcessResult create_process(const std::string& program,
         cmdBuffer.data(),
         NULL,
         NULL,
-        output_file.has_value() ? TRUE : FALSE,
+        input_file.has_value() || output_file.has_value() ? TRUE : FALSE,
         0,
         NULL,
         NULL,
@@ -177,6 +207,7 @@ ProcessResult create_process(const std::string& program,
     );
 
     if (hOutputFile != INVALID_HANDLE_VALUE) CloseHandle(hOutputFile);
+    if (hInputFile != INVALID_HANDLE_VALUE) CloseHandle(hInputFile);
 
     // the process could not run
     if (!bCreateProcess) {

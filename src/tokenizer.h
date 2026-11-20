@@ -6,7 +6,8 @@ enum class TokenKind {
     word, // ordinary text
     redirect_in, // <
     redirect_out, // >
-    redirect_append // >>
+    redirect_append, // >>
+    command_separator // ;
 };
 
 struct Token {

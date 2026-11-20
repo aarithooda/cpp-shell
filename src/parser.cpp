@@ -46,12 +46,6 @@ Command parse(const std::vector<Token>& tokens, int& last_status) {
             }
         }
         else if (token.kind == TokenKind::word) {
-            if (command.output_file.has_value() || command.input_file.has_value()) {
-                std::cout << "Syntax error: unexpected trailing argument after redirection target." << std::endl;
-                last_status = 1;
-                return {};
-            }
-
             command.arguments.push_back(token.text);
         }
     }

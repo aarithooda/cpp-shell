@@ -6,23 +6,31 @@ std::vector<Token> tokenize(const std::string& input, int& last_status) {
 
     std::vector<Token> tokenisedInput;
     std::string temp;
-    bool in_quotes = false;
+    char quote = '\0';
     bool token_started = false;
 
     for (size_t i = 0; i < input.length(); i++) {
         char c = input[i];
 
-        if (c == '"' && !in_quotes) {
-            in_quotes = true;
+        if ((c == '"' || c == '\'') && quote == '\0') {
+            quote = c;
             token_started = true;
             continue;
         }
-        if (c == '"' && in_quotes) {
-            in_quotes = false;
+        if (c == quote && quote != '\0') {
+            quote = '\0';
             continue;
         }
 
-        if (!in_quotes) {
+        if (c == '\\' && quote != '\'') {
+            if (i+1 < input.size()) {
+                temp.push_back(input[++i]);
+                token_started = true;
+                continue;
+            }
+        }
+
+        if (quote == '\0') {
             if (c == ' ' || c == '\t') {
                 if (token_started) {
                     tokenisedInput.push_back({TokenKind::word, temp});
@@ -47,13 +55,23 @@ std::vector<Token> tokenize(const std::string& input, int& last_status) {
                 else if (c == '<') tokenisedInput.push_back({TokenKind::redirect_in, "<"});
                 continue;
             }
+
+            if (c == ';') {
+                if (token_started) {
+                    tokenisedInput.push_back({TokenKind::word, temp});
+                    temp.clear();
+                    token_started = false;
+                }
+                tokenisedInput.push_back({TokenKind::command_separator, ";"});
+                continue;
+            }
         }
 
         temp.push_back(c);
         token_started = true;
     }
 
-    if (in_quotes) {
+    if (quote != '\0') {
         std::cout << "Syntax error: unmatched quotation mark." << std::endl;
         last_status = 1;
         return {};
